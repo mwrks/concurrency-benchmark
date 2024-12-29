@@ -3,27 +3,38 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
 	"net/http"
-	"runtime"
-	"sync"
-	"time"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 )
+
+var paragraph = "Lorem ipsum dolor sit amet consectetur adipiscing elit Nullam vehicula ex id quam tincidunt ac varius justo cursus Proin ac efficitur risus quis dapibus tortor Praesent sit amet vehicula lorem vel pharetra mauris Aenean congue felis a sapien ultricies hendrerit Curabitur in sem vitae mi sagittis bibendum in nec elit Cras vel nisl vel risus dictum tincidunt vel id libero Sed aliquet dolor eget libero aliquet vel aliquet sem consequat Vivamus auctor justo in urna gravida faucibus Fusce luctus purus vel pharetra efficitur velit sapien tincidunt sapien eget vulputate quam ligula sed turpis Sed viverra hendrerit purus id posuere Ut quis finibus magna Aliquam sodales odio sed consequat maximus justo justo egestas lectus non commodo nisi sapien non ipsum Nullam non magna ut ligula accumsan fermentum Integer pellentesque velit eu orci aliquet id pharetra erat mollis Ut volutpat ligula nec ipsum fermentum sed interdum metus vehicula Suspendisse ac sapien at justo pharetra auctor in sed nisi Morbi molestie eros vel mauris tempor sodales Maecenas scelerisque erat id sapien aliquet vehicula Vestibulum scelerisque nisi sed rutrum scelerisque nisl enim aliquet dolor vel tincidunt sapien nulla et arcu Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas Ut at lectus non magna convallis blandit eget id tortor Curabitur gravida justo at lacinia dictum Duis malesuada lacinia quam nec cursus neque facilisis nec Donec efficitur suscipit tellus Quisque scelerisque orci et arcu vestibulum fermentum Fusce eget nulla nisl Cras vehicula sagittis tellus sit amet eleifend Praesent tincidunt sem ac tortor finibus quis mollis purus tincidunt Aenean tincidunt nunc vel tincidunt venenatis Sed vitae lectus id dolor dictum vehicula id nec sapien Nulla ac nunc nec enim interdum dictum in a libero Suspendisse potenti Praesent eget lacus nec sapien malesuada gravida in ac justo Duis fringilla justo et augue venenatis luctus Pellentesque consectetur ipsum quis velit bibendum non posuere nisi ultricies"
+var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
+var names = strings.Fields(paragraph)
+
+func getRandomName() string {
+	return names[rnd.Intn(len(names))]
+}
 
 type Order struct {
 	TicketID  int    `json:"ticket_id"`
 	OrderedBy string `json:"ordered_by"`
 }
 
-func getRandomName() string {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	paragraph := "Lorem ipsum odor amet consectetuer adipiscing elit Tortor urna primis maximus habitasse vulputate nisi penatibus Lacus purus metus dapibus tempor dolor suspendisse Nostra pulvinar nostra integer ullamcorper faucibus bibendum Elementum fames nibh ipsum amet porttitor Ullamcorper eu in nostra in amet Aliquet mauris felis tristique rhoncus inceptos arcu Litora amet consequat mus aptent suspendisse metus donec Conubia leo hac eget nibh enim dapibus interdum Laoreet iaculis venenatis vehicula nunc elit aenean donec fusce Erat dui nullam vel elementum viverra nibh non Urna fringilla suspendisse scelerisque iaculis semper neque Consectetur feugiat ac fusce torquent diam senectus volutpat sociosqu In eros non ultricies bibendum nam curabitur vivamus nec Conubia platea ac ac turpis dolor ipsum Facilisi leo tellus purus urna ornare pharetra potenti risus Feugiat gravida ex faucibus nunc congue a ex consequat sed"
-	names := strings.Fields(paragraph)
-	return names[rnd.Intn(len(names))]
+// Shared HTTP client with connection pooling
+var httpClient = &http.Client{
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+	},
 }
 
 func makeOrderRequest(url string, ticketID int) error {
@@ -43,8 +54,7 @@ func makeOrderRequest(url string, ticketID int) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -54,32 +64,68 @@ func makeOrderRequest(url string, ticketID int) error {
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU()) // Utilize all available CPU cores
+	// Command-line flags for configuration
+	url := flag.String("url", "http://localhost:3000/order", "Target URL")
+	numRequests := flag.Int("requests", 10000, "Total number of requests to send")
+	concurrency := flag.Int("concurrency", 100, "Number of concurrent workers")
+	ticketID := flag.Int("ticket_id", 1, "Ticket ID to use for orders")
+	flag.Parse()
 
-	url := "http://localhost:3000/order" // Replace with your ticketing app's endpoint
+	// Metrics
+	var totalRequests int32
+	var successfulRequests int32
+	var failedRequests int32
 
+	// Worker pool
 	var wg sync.WaitGroup
-	numRequests := 10000 // Increase the number of requests
-	ticketID := 1        // Use a specific ticket ID for testing
-
-	for i := 0; i < numRequests; i++ {
+	requests := make(chan int, *numRequests)
+	for i := 0; i < *concurrency; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// Introduce a small random delay to increase the likelihood of concurrent requests
-			time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
-			err := makeOrderRequest(url, ticketID)
-			if err != nil {
-				log.Println(err)
+			for range requests {
+				err := makeOrderRequest(*url, *ticketID)
+				atomic.AddInt32(&totalRequests, 1)
+				if err != nil {
+					atomic.AddInt32(&failedRequests, 1)
+					log.Printf("Request failed: %v\n", err)
+				} else {
+					atomic.AddInt32(&successfulRequests, 1)
+				}
 			}
 		}()
 	}
 
+	// Rate control using a ticker (optional)
+	rate := 1000 // requests per second
+	ticker := time.NewTicker(time.Second / time.Duration(rate))
+	defer ticker.Stop()
+
+	start := time.Now()
+
+	// Enqueue requests
+	go func() {
+		for i := 0; i < *numRequests; i++ {
+			<-ticker.C
+			requests <- i
+		}
+		close(requests)
+	}()
+
+	// Wait for workers to finish
 	wg.Wait()
-	fmt.Println("All requests sent.")
+	duration := time.Since(start)
+
+	// Report results
+	fmt.Printf("Load Test Completed\n")
+	fmt.Printf("===================\n")
+	fmt.Printf("Total Requests: %d\n", totalRequests)
+	fmt.Printf("Successful Requests: %d\n", successfulRequests)
+	fmt.Printf("Failed Requests: %d\n", failedRequests)
+	fmt.Printf("Duration: %v\n", duration)
+	fmt.Printf("Requests per Second: %.2f\n", float64(totalRequests)/duration.Seconds())
 }
