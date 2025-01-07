@@ -179,7 +179,7 @@ func fetchOrders(ticketID int) ([]Order, error) {
 	return orders, nil
 }
 
-func logToExcel(fileName string, runNo string, initialStock int, successfulOrders int, jsonBody []Order, duration time.Duration, rps float64, avgLatency time.Duration) error {
+func logToExcel(fileName string, initialStock int, successfulOrders int, jsonBody []Order, duration time.Duration, rps float64, avgLatency time.Duration) error {
 	// Create or open the Excel file
 	var f *excelize.File
 	if _, err := os.Stat(fileName); os.IsNotExist(err) {
@@ -215,7 +215,6 @@ func logToExcel(fileName string, runNo string, initialStock int, successfulOrder
 
 	// Write data
 	data := []interface{}{
-		runNo,
 		initialStock,
 		successfulOrders,
 		string(jsonData),
@@ -238,7 +237,6 @@ func logToExcel(fileName string, runNo string, initialStock int, successfulOrder
 func main() {
 	// Command-line flags for configuration
 	fileName := "test_results.xlsx"
-	runNo := ""
 	url := flag.String("url", "http://localhost:3000/order", "Target URL")
 	numRequests := flag.Int("requests", 100, "Total number of requests to send")
 	concurrency := flag.Int("concurrency", 100, "Number of concurrent workers")
@@ -331,7 +329,7 @@ func main() {
 		successfulOrders := len(orders)
 
 		// Log to Excel
-		if err := logToExcel(fileName, runNo, initialStock, successfulOrders, orders, duration, rps, averageLatency); err != nil {
+		if err := logToExcel(fileName, initialStock, successfulOrders, orders, duration, rps, averageLatency); err != nil {
 			log.Fatalf("Failed to log to Excel: %v", err)
 		}
 
