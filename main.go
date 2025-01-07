@@ -238,13 +238,12 @@ func logToExcel(fileName string, runNo string, initialStock int, successfulOrder
 func main() {
 	// Command-line flags for configuration
 	fileName := "test_results.xlsx"
-	runNo := "" // Replace with your test run number
+	runNo := ""
 	url := flag.String("url", "http://localhost:3000/order", "Target URL")
 	numRequests := flag.Int("requests", 100, "Total number of requests to send")
 	concurrency := flag.Int("concurrency", 100, "Number of concurrent workers")
-	nTicketID := 1
-	ticketID := flag.Int("ticket_id", nTicketID, "Ticket ID to use for orders")
-	numRuns := flag.Int("runs", 1, "Number of times to run the tool") // Add flag for number of runs
+	ticketID := flag.Int("ticket_id", 1, "Ticket ID to use for orders")
+	numRuns := flag.Int("runs", 1, "Number of times to run the tool")
 	flag.Parse()
 
 	fmt.Printf("Running Benchmark\n")
@@ -325,7 +324,7 @@ func main() {
 		rps := float64(totalRequests) / duration.Seconds()
 
 		// Fetch orders
-		orders, err := fetchOrders(nTicketID)
+		orders, err := fetchOrders(*ticketID)
 		if err != nil {
 			log.Fatalf("Failed to fetch orders: %v", err)
 		}
