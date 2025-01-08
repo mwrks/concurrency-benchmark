@@ -71,10 +71,10 @@ func Benchmark(url string, numRun int, numRequests int, concurrency int, ticketI
 	successfulOrders := len(orders)
 
 	// Error rate
-	errorRate := (successfulOrders/initialStock - 1) * 100
+	mismatchRate := (float64(successfulOrders-initialStock) / float64(initialStock)) * 100
 
 	// Log to Excel
-	if err := LogToExcel(fileName, numRun, errorRate, initialStock, successfulOrders, orders, duration, rps, averageLatency); err != nil {
+	if err := LogToExcel(fileName, numRun, mismatchRate, initialStock, successfulOrders, orders, duration, rps, averageLatency); err != nil {
 		log.Fatalf("Failed to log to Excel: %v", err)
 	}
 	log.Printf("Test results logged successfully to %s", fileName)

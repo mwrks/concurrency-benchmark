@@ -10,14 +10,14 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-func LogToExcel(fileName string, numRun int, errorRate int, initialStock int, successfulOrders int, jsonBody []models.Order, duration time.Duration, rps float64, avgLatency time.Duration) error {
+func LogToExcel(fileName string, numRun int, mismatchRate float64, initialStock int, successfulOrders int, jsonBody []models.Order, duration time.Duration, rps float64, avgLatency time.Duration) error {
 	// Create or open the Excel file
 	var f *excelize.File
 	if _, err := os.Stat(fileName); os.IsNotExist(err) {
 		// File doesn't exist, create a new one
 		f = excelize.NewFile()
 		// Create headers
-		headers := []string{"run", "error_rate", "initial_stock", "amount_of_successful_orders", "json_body", "duration", "requests_per_second", "average_latency"}
+		headers := []string{"run", "mismatch_rate", "initial_stock", "amount_of_successful_orders", "json_body", "duration", "requests_per_second", "average_latency"}
 		for i, header := range headers {
 			cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 			f.SetCellValue("Sheet1", cell, header)
@@ -47,7 +47,7 @@ func LogToExcel(fileName string, numRun int, errorRate int, initialStock int, su
 	// Write data
 	data := []interface{}{
 		numRun,
-		errorRate,
+		mismatchRate,
 		initialStock,
 		successfulOrders,
 		string(jsonData),
