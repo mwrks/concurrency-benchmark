@@ -161,16 +161,20 @@ func resetOrderSequence() error {
 
 func fetchOrders(ticketID int) ([]Order, error) {
 	url := fmt.Sprintf("http://localhost:3000/order/%d", ticketID)
+
+	// Send the GET request to fetch orders
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch orders: %v", err)
 	}
 	defer resp.Body.Close()
 
+	// Check if the response status is OK
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
+	// Parse the JSON response into the orders slice
 	var orders []Order
 	if err := json.NewDecoder(resp.Body).Decode(&orders); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
@@ -179,14 +183,14 @@ func fetchOrders(ticketID int) ([]Order, error) {
 	return orders, nil
 }
 
-func logToExcel(fileName string, initialStock int, successfulOrders int, jsonBody []Order, duration time.Duration, rps float64, avgLatency time.Duration) error {
+func logToExcel(fileName string, noRun string, errorRate int, initialStock int, successfulOrders int, jsonBody []Order, duration time.Duration, rps float64, avgLatency time.Duration) error {
 	// Create or open the Excel file
 	var f *excelize.File
 	if _, err := os.Stat(fileName); os.IsNotExist(err) {
 		// File doesn't exist, create a new one
 		f = excelize.NewFile()
 		// Create headers
-		headers := []string{"no_run", "initial_stock", "amount_of_successful_orders", "json_body", "duration", "requests_per_second", "average_latency"}
+		headers := []string{"no_run", "error_rate", "initial_stock", "amount_of_successful_orders", "json_body", "duration", "requests_per_second", "average_latency"}
 		for i, header := range headers {
 			cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 			f.SetCellValue("Sheet1", cell, header)
@@ -215,6 +219,8 @@ func logToExcel(fileName string, initialStock int, successfulOrders int, jsonBod
 
 	// Write data
 	data := []interface{}{
+		noRun,
+		errorRate,
 		initialStock,
 		successfulOrders,
 		string(jsonData),
@@ -236,10 +242,10 @@ func logToExcel(fileName string, initialStock int, successfulOrders int, jsonBod
 
 func main() {
 	// Command-line flags for configuration
-	fileName := "test_results.xlsx"
+	fileName := flag.String("filename", "test_results.xlsx", "Test results filename")
 	url := flag.String("url", "http://localhost:3000/order", "Target URL")
 	numRequests := flag.Int("requests", 100, "Total number of requests to send")
-	concurrency := flag.Int("concurrency", 100, "Number of concurrent workers")
+	concurrency := flag.Int("concurrency", 10, "Number of concurrent workers")
 	ticketID := flag.Int("ticket_id", 1, "Ticket ID to use for orders")
 	numRuns := flag.Int("runs", 1, "Number of times to run the tool")
 	flag.Parse()
@@ -248,7 +254,17 @@ func main() {
 	fmt.Printf("Requests\t: %d\n", *numRequests)
 	fmt.Printf("Concurrency\t: %d\n", *concurrency)
 	fmt.Printf("Test runs\t: %d\n", *numRuns)
+
+	// Check filename file format
+	if strings.HasSuffix(*fileName, ".xlsx") {
+		fmt.Printf("Log file\t: %s\n", *fileName)
+	} else {
+		*fileName = fmt.Sprintf("%s.xlsx", *fileName)
+		fmt.Printf("Log file\t: %s\n", *fileName)
+	}
+
 	fmt.Printf("===================\n")
+
 	// Loop to run the test multiple times
 	for i := 0; i < *numRuns; i++ {
 		log.Printf("Running test %d of %d...", i+1, *numRuns)
@@ -328,15 +344,23 @@ func main() {
 		}
 		successfulOrders := len(orders)
 
+		// Error rate
+		errorRate := (successfulOrders/initialStock - 1) * 100
+
 		// Log to Excel
-		if err := logToExcel(fileName, initialStock, successfulOrders, orders, duration, rps, averageLatency); err != nil {
+		if err := logToExcel(*fileName, "", errorRate, initialStock, successfulOrders, orders, duration, rps, averageLatency); err != nil {
 			log.Fatalf("Failed to log to Excel: %v", err)
 		}
 
-		log.Printf("Test results logged successfully to %s", fileName)
+		log.Printf("Test results logged successfully to %s", *fileName)
 		// Step 3: Reset orders and sequence
 		if err := resetOrders(*ticketID); err != nil {
 			log.Printf("Failed to reset orders: %v", err)
+		}
+
+		// Checking orders is 0
+		if orders, err := fetchOrders(*ticketID); len(orders) != 0 {
+			log.Fatalf("Orders table is not empty after reset: %v", err)
 		}
 
 		if err := resetOrderSequence(); err != nil {
