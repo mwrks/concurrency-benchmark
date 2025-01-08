@@ -2,7 +2,10 @@ module concurrency-benchmark
 
 go 1.23.3
 
-require github.com/xuri/excelize/v2 v2.9.0
+require (
+	github.com/xuri/excelize/v2 v2.9.0
+	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
+)
 
 require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
