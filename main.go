@@ -46,7 +46,7 @@ func main() {
 		}
 		log.Printf("Updated current stock for ticket ID %d to %d", *ticketID, initialStock)
 
-		totalRequests, successfulRequests, failedRequests, duration, rps, averageLatency := benchmark.Benchmark(*url, *numRequests, *concurrency, *ticketID, initialStock, *fileName)
+		totalRequests, successfulRequests, failedRequests, duration, rps, averageLatency := benchmark.Benchmark(*url, i+1, *numRequests, *concurrency, *ticketID, initialStock, *fileName)
 
 		// Step 3: Reset orders and sequence
 		if err := benchmark.ResetOrders(*ticketID); err != nil {

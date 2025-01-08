@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func Benchmark(url string, numRequests int, concurrency int, ticketID int, initialStock int, fileName string) (int32, int32, int32, time.Duration, float64, time.Duration) {
+func Benchmark(url string, numRun int, numRequests int, concurrency int, ticketID int, initialStock int, fileName string) (int32, int32, int32, time.Duration, float64, time.Duration) {
 	// Metrics
 	var totalRequests int32
 	var successfulRequests int32
@@ -74,7 +74,7 @@ func Benchmark(url string, numRequests int, concurrency int, ticketID int, initi
 	errorRate := (successfulOrders/initialStock - 1) * 100
 
 	// Log to Excel
-	if err := LogToExcel(fileName, "", errorRate, initialStock, successfulOrders, orders, duration, rps, averageLatency); err != nil {
+	if err := LogToExcel(fileName, numRun, errorRate, initialStock, successfulOrders, orders, duration, rps, averageLatency); err != nil {
 		log.Fatalf("Failed to log to Excel: %v", err)
 	}
 	log.Printf("Test results logged successfully to %s", fileName)
