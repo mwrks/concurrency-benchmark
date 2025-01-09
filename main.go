@@ -19,8 +19,8 @@ func main() {
 	numRuns := flag.Int("runs", 1, "Number of times to run the tool")
 	flag.Parse()
 
-	// Check filename
-	fileName = utils.FilenameCheck(fileName)
+	// Check filename and formatting
+	fileName = utils.FilenameCheck(fileName, numRequests, concurrency)
 
 	fmt.Printf("Running Benchmark\n")
 	fmt.Printf("Requests\t: %d\n", *numRequests)
@@ -47,6 +47,10 @@ func main() {
 		log.Printf("Updated current stock for ticket ID %d to %d", *ticketID, initialStock)
 
 		totalRequests, successfulRequests, failedRequests, duration, rps, averageLatency := benchmark.Benchmark(*url, i+1, *numRequests, *concurrency, *ticketID, initialStock, *fileName)
+
+		// if i < *numRuns-1 {
+		// 	time.Sleep(5 * time.Second)
+		// }
 
 		// Step 3: Reset orders and sequence
 		if err := benchmark.ResetOrders(*ticketID); err != nil {

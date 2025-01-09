@@ -55,6 +55,8 @@ func Benchmark(url string, numRun int, numRequests int, concurrency int, ticketI
 	wg.Wait()
 	duration := time.Since(start)
 
+	time.Sleep(2 * time.Second)
+
 	// Report results
 	averageLatency := time.Duration(0)
 	if totalRequests > 0 {
